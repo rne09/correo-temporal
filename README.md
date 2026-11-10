@@ -53,7 +53,7 @@ Despues, doble clic en `windows/CorreoTemporal.bat` (o `python temp_mail_app.py`
   - ignora iconos (como 💡) delante de la contrasena;
   - la busca tambien en la version HTML del correo;
   - si el correo no la trae, usa la que muestra la web al registrarse;
-  - si aun asi no aparece, el registro ya no se queda esperando: ofrece pedir el correo de recuperacion al momento.
+  - al terminar el registro siempre pregunta si quieres generar una contrasena nueva con "Forgot your password" (la respuesta por defecto es **si** cuando el correo no trajo contrasena).
 - **Opcion 8, recuperar contrasena**: pide el correo de "Forgot your password?" a Retouch4me, lo espera en el buzon temporal y abre el enlace para crear la contrasena nueva.
 - **Enlace de verificacion completo** debajo del cuadro de credenciales, para abrirlo con Cmd + clic (Mac) o Ctrl + clic (Windows).
 - **Limites de mail.tm (error 429)**: el programa espera y reintenta solo (5 s normal, hasta 60 s si mail.tm pide ir mas despacio) y no pierde un correo que no pudo leer.

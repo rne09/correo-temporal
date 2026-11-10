@@ -363,8 +363,8 @@ def ejecutar_limpieza_apex():
 
 
 def _ofrecer_recuperacion(proveedor, correo):
-    respuesta = preguntar("No llego la contrasena. Pedir un correo de recuperacion? [s/N]:").lower()
-    if respuesta in ("s", "si", "sí", "y", "yes"):
+    respuesta = preguntar("No llego la contrasena. Generar una nueva con 'Forgot your password'? [S/n]:").lower()
+    if respuesta in ("", "s", "si", "sí", "y", "yes"):
         flujo_recuperar_contrasena_retouch4me(proveedor, correo)
 
 
@@ -415,13 +415,24 @@ def flujo_registro_retouch4me(proveedor, correo):
     print(color("  Enlace de verificacion completo (Cmd + clic para abrirlo):", C.CIAN, C.NEGRITA))
     print(f"  {credenciales['verify_url']}")
 
-    if not credenciales["password"]:
+    # Siempre se ofrece crear una contrasena nueva con "Forgot your password?":
+    # por defecto SI cuando no llego contrasena, y NO cuando si llego.
+    print()
+    if credenciales["password"]:
+        respuesta = preguntar(
+            "No ves la contrasena o no funciona? Generar una nueva con 'Forgot your password'? [s/N]:"
+        ).lower()
+        quiere = respuesta in ("s", "si", "sí", "y", "yes")
+    else:
         aviso("El correo de Retouch4me llego sin contrasena.")
-        enlace = None
-        respuesta = preguntar("Pedir ya el correo de 'Forgot password' para crear una? [S/n]:").lower()
-        if respuesta in ("", "s", "si", "sí", "y", "yes"):
-            enlace = flujo_recuperar_contrasena_retouch4me(proveedor, correo)
-        credenciales["password"] = "(crear con: " + enlace + ")" if enlace else "(pendiente: usa la opcion 8)"
+        respuesta = preguntar("Generar una nueva con 'Forgot your password'? [S/n]:").lower()
+        quiere = respuesta in ("", "s", "si", "sí", "y", "yes")
+    if quiere:
+        enlace = flujo_recuperar_contrasena_retouch4me(proveedor, correo)
+        if enlace:
+            credenciales["password"] = "(nueva, creada con: " + enlace + ")"
+    if not credenciales["password"]:
+        credenciales["password"] = "(pendiente: usa la opcion 8)"
 
     datos_cuenta = (
         f"Login: {credenciales['email']}\n"
