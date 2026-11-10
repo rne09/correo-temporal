@@ -1,0 +1,8 @@
+__pycache__/
+build/
+dist/
+*.respaldo.py
+*.backup.py
+cuentas_retouch4me.txt
+ultimo_registro_retouch4me.html
+.DS_Store
