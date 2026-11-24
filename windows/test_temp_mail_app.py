@@ -328,6 +328,20 @@ class MejorasMacTests(unittest.TestCase):
         datos = self._extraer("Login: a@b.com\nTemporary password: \U0001F4A1 Xk9pL2q")
         self.assertEqual(datos["password"], "Xk9pL2q")
 
+    def test_formato_real_del_correo_de_bienvenida(self):
+        datos = self._extraer(
+            "Login\n\na@b.com\n\nTemporary password\n\nlxQga\n\n"
+            "\U0001F4A1 Tip: For the security of your account, please change it."
+        )
+        self.assertEqual(datos["password"], "lxQga")
+
+    def test_formato_real_sin_password_no_toma_el_tip(self):
+        datos = self._extraer(
+            "Login\n\na@b.com\n\nTemporary password\n\n\n"
+            "\U0001F4A1 Tip: For the security of your account, please change it."
+        )
+        self.assertIsNone(datos["password"])
+
     def test_password_en_la_linea_siguiente(self):
         datos = self._extraer("Login: a@b.com\nTemporary password: \U0001F4A1\nQw7Zp9\n")
         self.assertEqual(datos["password"], "Qw7Zp9")

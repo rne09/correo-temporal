@@ -1053,8 +1053,10 @@ def _buscar_password_temporal(texto):
     """Busca la contrasena tras 'Temporary password', aunque venga despues de
     iconos (p. ej. un emoji) o en la linea siguiente. Devuelve None si no hay."""
     texto = texto or ""
-    for m in re.finditer(r"\bTemporary\s+password\b\s*:?", texto, re.I):
-        lineas = texto[m.end():].split("\n")[:3]
+    for m in re.finditer(r"\bTemporary\s+password\b[ \t]*:?", texto, re.I):
+        resto = texto[m.end():].split("\n")
+        # La misma linea y las dos siguientes que tengan contenido.
+        lineas = resto[:1] + [l for l in resto[1:] if l.strip()][:2]
         for n, linea in enumerate(lineas):
             if n > 0 and re.search(r"[A-Za-z]{3,}\s*:", linea):
                 break  # empieza otro campo (Login:, Verify Email:...)
