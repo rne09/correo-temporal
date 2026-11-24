@@ -500,9 +500,10 @@ def flujo_registro_retouch4me(proveedor, correo):
         respuesta = preguntar("Generar una nueva con 'Forgot your password'? [S/n]:").lower()
         quiere = respuesta in ("", "s", "si", "sí", "y", "yes")
     if quiere:
-        enlace = flujo_recuperar_contrasena_retouch4me(proveedor, correo)
-        if enlace:
-            credenciales["password"] = "(nueva, creada con: " + enlace + ")"
+        resultado = flujo_recuperar_contrasena_retouch4me(proveedor, correo)
+        if resultado:
+            credenciales["password"] = (
+                resultado if not resultado.startswith("http") else "(crear con: " + resultado + ")")
     if not credenciales["password"]:
         credenciales["password"] = "(pendiente: usa la opcion 8)"
 
@@ -973,8 +974,36 @@ def _enlace_recuperacion_retouch4me(mensaje):
     return None
 
 
+def es_correo_recuperacion_retouch4me(resumen):
+    """Reconoce el correo de recuperacion por remitente y asunto."""
+    remitente = str(resumen.get("de") or "").casefold()
+    asunto = str(resumen.get("asunto") or "").casefold()
+    return "retouch4" in remitente and any(
+        p in asunto for p in ("recover", "password", "reset", "restore", "contrase"))
+
+
+def datos_recuperacion_retouch4me(mensaje):
+    """Devuelve (contrasena, enlace) del correo de recuperacion; cualquiera puede ser None."""
+    texto = texto_legible(mensaje) + "\n" + texto_legible({"html": mensaje.get("html")})
+    password = None
+    for etiqueta in ETIQUETAS_PASSWORD_RECUPERACION:
+        password = _buscar_password_temporal(texto, etiqueta)
+        if password:
+            break
+    enlace = _enlace_recuperacion_retouch4me(mensaje)
+    if not enlace:
+        # Enlaces con seguimiento (p. ej. track.customer.io): se decide por el texto del boton.
+        for url, etiqueta in extraer_enlaces(mensaje.get("texto"), mensaje.get("html")):
+            texto_boton = (etiqueta or "").casefold()
+            if _url_https_segura(url) and any(
+                    p in texto_boton for p in ("reset", "password", "recover", "restore", "set new")):
+                enlace = url
+                break
+    return password, enlace
+
+
 def esperar_enlace_recuperacion(proveedor, ignorar=()):
-    """Espera el correo de recuperacion y devuelve (enlace, mensaje)."""
+    """Espera el correo de recuperacion de Retouch4me y lo devuelve (o None)."""
     print()
     info("Esperando el correo de recuperacion de Retouch4me... (Ctrl+C para cancelar)")
     vistos = set(ignorar)
@@ -1002,11 +1031,11 @@ def esperar_enlace_recuperacion(proveedor, ignorar=()):
                     aviso(f"No pude leer el mensaje todavia, reintento en {pausa} s...")
                     break
                 vistos.add(resumen["id"])
-                enlace = _enlace_recuperacion_retouch4me(completo)
-                if enlace:
+                completo.setdefault("de", resumen.get("de"))
+                completo.setdefault("asunto", resumen.get("asunto"))
+                if es_correo_recuperacion_retouch4me(completo) or _enlace_recuperacion_retouch4me(completo):
                     print("\r" + " " * 80 + "\r", end="")
-                    mostrar_mensaje(completo, lineas_max=12)
-                    return enlace, completo
+                    return completo
 
             for _ in range(pausa * 2):
                 hora = time.strftime("%H:%M:%S")
@@ -1017,7 +1046,7 @@ def esperar_enlace_recuperacion(proveedor, ignorar=()):
     except KeyboardInterrupt:
         print()
         aviso("Espera cancelada.")
-        return None, None
+        return None
 
 
 def flujo_recuperar_contrasena_retouch4me(proveedor, correo):
@@ -1034,26 +1063,49 @@ def flujo_recuperar_contrasena_retouch4me(proveedor, correo):
 
     info("Enviando la solicitud de recuperacion...")
     ok(solicitar_recuperacion_retouch4me(correo))
-    enlace, _ = esperar_enlace_recuperacion(proveedor, ignorar=ya_estaban)
-    if not enlace:
+    mensaje = esperar_enlace_recuperacion(proveedor, ignorar=ya_estaban)
+    if not mensaje:
         return None
 
+    mostrar_mensaje_completo(mensaje)
+    password, enlace = datos_recuperacion_retouch4me(mensaje)
     print()
-    ok("Enlace para crear la contrasena nueva:")
-    print(f"  {enlace}")
-    print(color("  (Cmd + clic para abrirlo)", C.TENUE))
-    _abrir(enlace)
-    return enlace
+    if password:
+        caja("CONTRASENA NUEVA", [
+            f"{color('Login:', C.CIAN, C.NEGRITA)}    {correo}",
+            f"{color('Password:', C.CIAN, C.NEGRITA)} {color(password, C.VERDE, C.NEGRITA)}",
+        ], c=C.VERDE)
+    if enlace:
+        ok("Enlace del correo de recuperacion:")
+        print(f"  {enlace}")
+        print(color("  (Cmd + clic para abrirlo)", C.TENUE))
+        _abrir(enlace)
+    if not password and not enlace:
+        ruta = guardar_correo_para_diagnostico(mensaje)
+        aviso("Llego el correo de recuperacion, pero no encontre contrasena ni enlace; revisalo arriba.")
+        if ruta:
+            info(f"Copia del correo guardada en: {ruta}")
+    return password or enlace
 
 
 _PALABRAS_NO_PASSWORD = ("verify", "http", "login", "email", "e-mail", "password", "your", "please", "click")
 
 
-def _buscar_password_temporal(texto):
-    """Busca la contrasena tras 'Temporary password', aunque venga despues de
-    iconos (p. ej. un emoji) o en la linea siguiente. Devuelve None si no hay."""
+ETIQUETA_PASSWORD_TEMPORAL = r"\bTemporary\s+password\b[ \t]*:?"
+# En el correo de recuperacion: "New password", "Temporary password" o una linea
+# que termina en "Password:" / "Password" (no frases como "change your password now").
+ETIQUETAS_PASSWORD_RECUPERACION = (
+    r"\b(?:New|Temporary)\s+password\b[ \t]*:?",
+    r"(?im)^[ \t]*(?:your\s+)?password[ \t]*:?[ \t]*$",
+    r"\bpassword[ \t]*:",
+)
+
+
+def _buscar_password_temporal(texto, etiqueta=ETIQUETA_PASSWORD_TEMPORAL):
+    """Busca la contrasena tras la etiqueta, aunque venga despues de iconos
+    (p. ej. un emoji) o en la linea siguiente. Devuelve None si no hay."""
     texto = texto or ""
-    for m in re.finditer(r"\bTemporary\s+password\b[ \t]*:?", texto, re.I):
+    for m in re.finditer(etiqueta, texto, re.I):
         resto = texto[m.end():].split("\n")
         # La misma linea y las dos siguientes que tengan contenido.
         lineas = resto[:1] + [l for l in resto[1:] if l.strip()][:2]

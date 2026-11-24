@@ -554,6 +554,50 @@ class MejorasMacTests(unittest.TestCase):
             app._abrir("https://retouch4.me/x")
         abrir.assert_called_once()
 
+    def test_reconoce_correo_de_recuperacion(self):
+        self.assertTrue(app.es_correo_recuperacion_retouch4me(
+            {"de": "noreply@retouch4.me", "asunto": "Your Retouch4me account has been recovered"}))
+        self.assertFalse(app.es_correo_recuperacion_retouch4me(
+            {"de": "noreply@retouch4.me", "asunto": "Welcome to Retouch4me"}))
+
+    def test_recuperacion_con_contrasena_nueva(self):
+        mensaje = {"texto": "Your account has been recovered\n\nLogin\n\na@b.com\n\n"
+                            "New password\n\nZp83kQ\n\n\U0001F4A1 Tip: change it.", "html": None}
+        self.assertEqual(app.datos_recuperacion_retouch4me(mensaje), ("Zp83kQ", None))
+
+    def test_recuperacion_con_password_a_secas(self):
+        mensaje = {"texto": "Login: a@b.com\nPassword: Qq12ab\nPlease change your password later.",
+                   "html": None}
+        self.assertEqual(app.datos_recuperacion_retouch4me(mensaje)[0], "Qq12ab")
+
+    def test_recuperacion_no_confunde_frases(self):
+        mensaje = {"texto": "Please change your password after logging in.", "html": None}
+        self.assertEqual(app.datos_recuperacion_retouch4me(mensaje), (None, None))
+
+    def test_recuperacion_con_enlace_de_seguimiento(self):
+        mensaje = {"texto": None, "html": '<a href="https://track.customer.io/e/abc">Reset password</a>'}
+        self.assertEqual(app.datos_recuperacion_retouch4me(mensaje)[1], "https://track.customer.io/e/abc")
+
+    def test_flujo_recuperacion_detecta_el_correo_y_muestra_la_clave(self):
+        class Proveedor:
+            llamadas = 0
+
+            def listar_mensajes(self):
+                self.llamadas += 1
+                lista = [{"id": "viejo", "de": "noreply@retouch4.me", "asunto": "Welcome"}]
+                if self.llamadas > 1:
+                    lista.insert(0, {"id": "nuevo", "de": "noreply@retouch4.me",
+                                     "asunto": "Your Retouch4me account has been recovered"})
+                return lista
+
+            def leer_mensaje(self, msg_id):
+                return {"de": "noreply@retouch4.me", "asunto": "Your Retouch4me account has been recovered",
+                        "texto": "New password\n\nNw45rt", "html": None}
+
+        with patch.object(app, "solicitar_recuperacion_retouch4me", return_value="Enviado"), \
+                patch.object(app.time, "sleep"), patch("builtins.print"):
+            self.assertEqual(app.flujo_recuperar_contrasena_retouch4me(Proveedor(), "a@b.com"), "Nw45rt")
+
     def test_portapapeles_en_mac_usa_pbcopy(self):
         with patch.object(app.os, "name", "posix"), patch.object(app.sys, "platform", "darwin"), \
                 patch.object(app.shutil, "which", return_value="/usr/bin/pbcopy"), \
