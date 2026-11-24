@@ -62,6 +62,7 @@ Despues, doble clic en `windows/CorreoTemporal.bat` (o `python temp_mail_app.py`
 - **Correo ya usado**: si el correo actual ya se uso para un registro, la opcion 6 crea uno nuevo (Retouch4me rechaza correos repetidos).
 - **Errores de registro mas claros**: muestra el mensaje de la web y guarda la pagina en `ultimo_registro_retouch4me.html`.
 - **Portapapeles en Mac** con `pbcopy`.
+- **Enlaces en modo incognito**: los enlaces se abren en una ventana privada de Chrome, Brave, Edge o Firefox (el primero que este instalado). Si no hay ninguno, se abren en el navegador normal. Safari no permite abrir ventanas privadas desde un programa.
 - **Limpieza de Apex en Mac (opcion 7)**: borra el correo, la sesion y el historial de trabajos de `/Library/Application Support/Retouch4me/Retouch4me.plist`, conserva la licencia y los presets, y deja un respaldo en el Escritorio (`Retouch4me_Apex_BACKUP_ANTES_DE_LIMPIAR`). En Windows sigue usando el `.bat`.
 
 ## Pruebas

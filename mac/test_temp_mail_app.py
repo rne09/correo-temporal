@@ -519,6 +519,27 @@ class MejorasMacTests(unittest.TestCase):
             with open(ruta, "rb") as f:
                 self.assertEqual(f.read(), antes)
 
+    def test_incognito_en_mac_con_brave(self):
+        def existe(ruta):
+            return ruta.endswith("Brave Browser.app")
+
+        with patch.object(app.sys, "platform", "darwin"), patch.object(app.os.path, "isdir", side_effect=existe):
+            comando = app._comando_incognito("https://retouch4.me/x")
+        self.assertEqual(comando, ["open", "-na", "Brave Browser", "--args", "--incognito", "https://retouch4.me/x"])
+
+    def test_incognito_en_windows_con_edge(self):
+        with patch.object(app.sys, "platform", "win32"), patch.object(app.os, "name", "nt"), \
+                patch.dict(app.os.environ, {"PROGRAMFILES": "C:\\PF"}, clear=False), \
+                patch.object(app.os.path, "isfile", side_effect=lambda r: r.endswith("msedge.exe")):
+            comando = app._comando_incognito("https://x.com")
+        self.assertEqual(comando[1:], ["--inprivate", "https://x.com"])
+
+    def test_sin_navegador_privado_usa_el_normal(self):
+        with patch.object(app, "_comando_incognito", return_value=None), \
+                patch.object(app.webbrowser, "open") as abrir, patch("builtins.print"):
+            app._abrir("https://retouch4.me/x")
+        abrir.assert_called_once()
+
     def test_portapapeles_en_mac_usa_pbcopy(self):
         with patch.object(app.os, "name", "posix"), patch.object(app.sys, "platform", "darwin"), \
                 patch.object(app.shutil, "which", return_value="/usr/bin/pbcopy"), \

@@ -888,8 +888,49 @@ def _abrir(url):
     if not _url_https_segura(url):
         error("Enlace bloqueado: debe usar HTTPS y no incluir credenciales.")
         return
-    webbrowser.open(url)
-    ok("Abierto en el navegador")
+    if abrir_incognito(url):
+        ok("Abierto en el navegador (modo incognito)")
+    else:
+        webbrowser.open(url)
+        aviso("No encontre un navegador con modo incognito; abierto en el navegador normal.")
+
+
+# (nombre, app de Mac, ejecutables de Windows, argumento de modo privado)
+NAVEGADORES_INCOGNITO = [
+    ("Google Chrome", "Google Chrome", [r"Google\Chrome\Application\chrome.exe"], "--incognito"),
+    ("Brave", "Brave Browser", [r"BraveSoftware\Brave-Browser\Application\brave.exe"], "--incognito"),
+    ("Microsoft Edge", "Microsoft Edge", [r"Microsoft\Edge\Application\msedge.exe"], "--inprivate"),
+    ("Firefox", "Firefox", [r"Mozilla Firefox\firefox.exe"], "-private-window"),
+]
+
+
+def _comando_incognito(url):
+    """Devuelve el comando para abrir la URL en modo incognito, o None."""
+    if sys.platform == "darwin":
+        for _, app_mac, _, argumento in NAVEGADORES_INCOGNITO:
+            for base in ("/Applications", os.path.expanduser("~/Applications")):
+                if os.path.isdir(os.path.join(base, app_mac + ".app")):
+                    return ["open", "-na", app_mac, "--args", argumento, url]
+    elif os.name == "nt":
+        bases = [os.environ.get(v) for v in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
+        for _, _, rutas, argumento in NAVEGADORES_INCOGNITO:
+            for base in filter(None, bases):
+                for relativa in rutas:
+                    exe = os.path.join(base, relativa)
+                    if os.path.isfile(exe):
+                        return [exe, argumento, url]
+    return None
+
+
+def abrir_incognito(url):
+    comando = _comando_incognito(url)
+    if not comando:
+        return False
+    try:
+        subprocess.Popen(comando, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except OSError:
+        return False
 
 
 def _host_retouch4me(url):
