@@ -50,7 +50,8 @@ Despues, doble clic en `windows/CorreoTemporal.bat` (o `python temp_mail_app.py`
 - **Leer mensajes por numero**: corrige el error `404 Not Found` que salia al pegar un ID recortado de la bandeja.
 - **Registro sin preguntas**: el nombre y el apellido se generan al azar.
 - **Contrasena temporal mas fiable**:
-  - ignora iconos (como 💡) delante de la contrasena;
+  - ignora iconos (como 💡) delante de la contrasena y la encuentra aunque venga en la linea siguiente;
+  - si no la encuentra, guarda el correo en `ultimo_correo_retouch4me.txt` para revisar su formato;
   - la busca tambien en la version HTML del correo;
   - si el correo no la trae, usa la que muestra la web al registrarse;
   - al terminar el registro siempre pregunta si quieres generar una contrasena nueva con "Forgot your password" (la respuesta por defecto es **si** cuando el correo no trajo contrasena).

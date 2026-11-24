@@ -1005,6 +1005,42 @@ def flujo_recuperar_contrasena_retouch4me(proveedor, correo):
     return enlace
 
 
+_PALABRAS_NO_PASSWORD = ("verify", "http", "login", "email", "e-mail", "password", "your", "please", "click")
+
+
+def _buscar_password_temporal(texto):
+    """Busca la contrasena tras 'Temporary password', aunque venga despues de
+    iconos (p. ej. un emoji) o en la linea siguiente. Devuelve None si no hay."""
+    texto = texto or ""
+    for m in re.finditer(r"\bTemporary\s+password\b\s*:?", texto, re.I):
+        lineas = texto[m.end():].split("\n")[:3]
+        for n, linea in enumerate(lineas):
+            if n > 0 and re.search(r"[A-Za-z]{3,}\s*:", linea):
+                break  # empieza otro campo (Login:, Verify Email:...)
+            for palabra in linea.split():
+                palabra = palabra.strip("<>()[]\"'.,;")
+                if not re.search(r"[A-Za-z0-9]", palabra):
+                    continue  # icono o simbolo suelto
+                if palabra.lower().startswith(_PALABRAS_NO_PASSWORD):
+                    continue
+                return palabra
+    return None
+
+
+def guardar_correo_para_diagnostico(mensaje):
+    """Guarda texto y HTML del correo para ver por que no se leyo la contrasena."""
+    try:
+        ruta = os.path.join(_directorio_aplicacion(), "ultimo_correo_retouch4me.txt")
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write("=== TEXTO ===\n")
+            f.write(str(mensaje.get("texto") or ""))
+            f.write("\n\n=== HTML ===\n")
+            f.write(str(mensaje.get("html") or ""))
+        return ruta
+    except OSError:
+        return None
+
+
 def extraer_credenciales_correo_retouch4me(mensaje, correo_esperado=None, password_respaldo=None):
     """Extrae Login, Temporary password y Verify Email del correo recibido."""
     texto = texto_legible(mensaje)
@@ -1026,15 +1062,7 @@ def extraer_credenciales_correo_retouch4me(mensaje, correo_esperado=None, passwo
 
     # El correo puede traer iconos (p. ej. un emoji) antes de la contrasena:
     # se toma la primera palabra que contenga letras o numeros ASCII.
-    password = None
-    for m_etiqueta in re.finditer(r"\bTemporary\s+password\b\s*:?[ \t]*([^\n]*)", texto or "", re.I):
-        for palabra in m_etiqueta.group(1).split():
-            palabra = palabra.strip("<>()")
-            if re.search(r"[A-Za-z0-9]", palabra) and not palabra.lower().startswith(("verify", "http")):
-                password = palabra
-                break
-        if password:
-            break
+    password = _buscar_password_temporal(texto)
     password = password or password_respaldo
 
     # Sin contrasena tambien se devuelve: el flujo ofrecera recuperarla.
@@ -1115,6 +1143,11 @@ def esperar_verificacion_retouch4me(proveedor, correo_esperado=None, password_re
                 print("\r" + " " * 80 + "\r", end="")
                 mostrar_mensaje(completo, lineas_max=12)
                 ok("Correo de Retouch4me encontrado.")
+                if not _buscar_password_temporal(texto_legible(completo) + "\n" +
+                                                 texto_legible({"html": completo.get("html")})):
+                    ruta = guardar_correo_para_diagnostico(completo)
+                    if ruta:
+                        aviso(f"No encontre la contrasena en el correo. Lo guarde en: {ruta}")
                 return credenciales
 
             for _ in range(pausa * 2):

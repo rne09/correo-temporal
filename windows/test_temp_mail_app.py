@@ -328,6 +328,18 @@ class MejorasMacTests(unittest.TestCase):
         datos = self._extraer("Login: a@b.com\nTemporary password: \U0001F4A1 Xk9pL2q")
         self.assertEqual(datos["password"], "Xk9pL2q")
 
+    def test_password_en_la_linea_siguiente(self):
+        datos = self._extraer("Login: a@b.com\nTemporary password: \U0001F4A1\nQw7Zp9\n")
+        self.assertEqual(datos["password"], "Qw7Zp9")
+
+    def test_no_toma_otro_campo_como_password(self):
+        datos = self._extraer("Login: a@b.com\nTemporary password:\n\U0001F4A1")
+        self.assertIsNone(datos["password"])
+
+    def test_password_con_simbolos(self):
+        datos = self._extraer("Login: a@b.com\nTemporary password: \U0001F4A1 aB#9$xZ!")
+        self.assertEqual(datos["password"], "aB#9$xZ!")
+
     def test_password_desde_html(self):
         datos = self._extraer(
             "Login: a@b.com\nTemporary password: \U0001F4A1",
