@@ -6,6 +6,7 @@ para realizar un registro individual en Retouch4me.
 """
 import html as html_lib
 import os
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -344,14 +345,85 @@ def _ruta_limpieza_apex():
     return candidatos[0]
 
 
+APEX_PLIST_MAC = "/Library/Application Support/Retouch4me/Retouch4me.plist"
+APEX_CLAVES_SESION_MAC = ("Retouch4me Apex_email", "Retouch4me Apex_session")
+APEX_PREFIJO_TRABAJOS_MAC = "Retouch4me Cloud Retouching_retouch4me_last_job_id_"
+
+
+def _apex_abierto_mac():
+    try:
+        r = subprocess.run(["pgrep", "-x", "Retouch4me Apex"], capture_output=True, check=False)
+        return r.returncode == 0
+    except OSError:
+        return False
+
+
+def _presets_quinces(datos):
+    return sorted(k for k, v in datos.items() if "preset" in k.lower() and "quinces" in str(v).lower())
+
+
+def limpiar_apex_mac(ruta_plist=APEX_PLIST_MAC, carpeta_respaldo=None):
+    """Equivalente Mac del .bat: borra correo, sesion e historial de Apex.
+
+    Conserva todo lo demas (licencia 'key', presets, modelos...) y deja un
+    respaldo del plist en el Escritorio. Devuelve 0 si todo salio bien.
+    """
+    if not os.path.isfile(ruta_plist):
+        raise FileNotFoundError(f"No encontre la configuracion de Apex: {ruta_plist}")
+    if _apex_abierto_mac():
+        error("Retouch4me Apex esta abierto. Cierralo por completo (Cmd+Q) y vuelve a intentarlo.")
+        return 2
+
+    with open(ruta_plist, "rb") as f:
+        datos = plistlib.load(f)
+
+    carpeta_respaldo = carpeta_respaldo or os.path.expanduser(
+        "~/Desktop/Retouch4me_Apex_BACKUP_ANTES_DE_LIMPIAR")
+    os.makedirs(carpeta_respaldo, exist_ok=True)
+    respaldo = os.path.join(carpeta_respaldo, f"Retouch4me_{datetime.now():%Y%m%d_%H%M%S}.plist")
+    shutil.copy2(ruta_plist, respaldo)
+    info(f"[1/4] Respaldo guardado en: {respaldo}")
+
+    quinces_antes = _presets_quinces(datos)
+    if quinces_antes:
+        info("[2/4] Preset Quinces encontrado; no se tocara.")
+    else:
+        info("[2/4] Esta instalacion de Mac no guarda presets en este archivo; no hay presets que tocar.")
+
+    borradas = [k for k in APEX_CLAVES_SESION_MAC if k in datos]
+    for k in borradas:
+        del datos[k]
+    info(f"[3/4] Correo y sesion de Apex eliminados ({len(borradas)} valores).")
+
+    trabajos = [k for k in datos if k.startswith(APEX_PREFIJO_TRABAJOS_MAC)]
+    for k in trabajos:
+        del datos[k]
+    info(f"      Historial local de trabajos limpiado ({len(trabajos)} valores).")
+
+    temporal = ruta_plist + ".tmp"
+    with open(temporal, "wb") as f:
+        plistlib.dump(datos, f, fmt=plistlib.FMT_XML)
+    os.replace(temporal, ruta_plist)
+
+    with open(ruta_plist, "rb") as f:
+        verificado = plistlib.load(f)
+    if any(k in verificado for k in APEX_CLAVES_SESION_MAC) or _presets_quinces(verificado) != quinces_antes:
+        error(f"La verificacion fallo. Restaura copiando el respaldo a: {ruta_plist}")
+        return 5
+    info("[4/4] Verificado. Abre Retouch4me Apex: debera pedirte iniciar sesion.")
+    return 0
+
+
 def ejecutar_limpieza_apex():
     """Ejecuta la limpieza dirigida en modo automatico y devuelve su codigo."""
+    if sys.platform == "darwin":
+        return limpiar_apex_mac()
+    if os.name != "nt":
+        raise RuntimeError("La limpieza de Apex solo esta disponible en Windows y Mac.")
+
     ruta = _ruta_limpieza_apex()
     if not os.path.isfile(ruta):
         raise FileNotFoundError(f"No encontre el archivo de limpieza: {ruta}")
-
-    if os.name != "nt":
-        raise RuntimeError("La limpieza de Apex usa un archivo .bat y solo funciona en Windows.")
     if not os.path.isfile(CMD_EXE):
         raise FileNotFoundError(f"No encontre el interprete de Windows: {CMD_EXE}")
     resultado = subprocess.run(
@@ -1326,7 +1398,7 @@ def menu():
                 info("Ejecutando la limpieza dirigida de Retouch4me Apex...")
                 codigo = ejecutar_limpieza_apex()
                 if codigo == 0:
-                    ok("Limpieza terminada; el preset Quinces se conservo.")
+                    ok("Limpieza terminada; los presets se conservaron.")
                 else:
                     error(f"La limpieza termino con el codigo {codigo}.")
                 pausa()

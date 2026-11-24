@@ -1,4 +1,5 @@
 import importlib
+import os
 import sys
 import types
 import unittest
@@ -198,6 +199,7 @@ class IntegracionRetouch4meTests(unittest.TestCase):
         with (
             patch.object(app, "_ruta_limpieza_apex", return_value=ruta),
             patch.object(app.os, "name", "nt"),
+            patch.object(app.sys, "platform", "win32"),
             patch.object(app.os.path, "isfile", return_value=True),
             patch.object(app.subprocess, "run", return_value=resultado) as ejecutar,
         ):
@@ -455,12 +457,55 @@ class MejorasMacTests(unittest.TestCase):
             self.assertEqual(proveedor.listar_mensajes(), [])
         self.assertEqual(proveedor.token, "nuevo")
 
-    def test_limpieza_apex_avisa_fuera_de_windows(self):
-        with patch.object(app, "_ruta_limpieza_apex", return_value="/tmp/x.bat"), \
-                patch.object(app.os.path, "isfile", return_value=True), \
-                patch.object(app.os, "name", "posix"):
+    def test_limpieza_apex_avisa_en_linux(self):
+        with patch.object(app.sys, "platform", "linux"), patch.object(app.os, "name", "posix"):
             with self.assertRaises(RuntimeError):
                 app.ejecutar_limpieza_apex()
+
+    def _plist_apex(self, carpeta, extra=None):
+        import plistlib
+        datos = {
+            "Retouch4me Apex_email": "viejo@x.com",
+            "Retouch4me Apex_session": "abc",
+            "Retouch4me Apex_key": "LICENCIA",
+            "Retouch4me Apex_Version": "1.212",
+            "Retouch4me Cloud Retouching_retouch4me_last_job_id_01": "job",
+            "Retouch4me Cloud Retouching_retouch4me_last_job_id_10": "",
+        }
+        datos.update(extra or {})
+        ruta = os.path.join(carpeta, "Retouch4me.plist")
+        with open(ruta, "wb") as f:
+            plistlib.dump(datos, f)
+        return ruta
+
+    def test_limpieza_apex_mac_borra_sesion_y_conserva_el_resto(self):
+        import plistlib
+        import tempfile
+        with tempfile.TemporaryDirectory() as carpeta:
+            ruta = self._plist_apex(carpeta, {"Retouch4me Apex_preset_0_name": "Quinces"})
+            respaldo = os.path.join(carpeta, "bk")
+            with patch.object(app, "_apex_abierto_mac", return_value=False), patch("builtins.print"):
+                codigo = app.limpiar_apex_mac(ruta, respaldo)
+            with open(ruta, "rb") as f:
+                datos = plistlib.load(f)
+            self.assertEqual(codigo, 0)
+            self.assertNotIn("Retouch4me Apex_email", datos)
+            self.assertNotIn("Retouch4me Apex_session", datos)
+            self.assertFalse(any("last_job_id" in k for k in datos))
+            self.assertEqual(datos["Retouch4me Apex_key"], "LICENCIA")
+            self.assertEqual(datos["Retouch4me Apex_preset_0_name"], "Quinces")
+            self.assertEqual(len(os.listdir(respaldo)), 1)
+
+    def test_limpieza_apex_mac_no_toca_nada_si_apex_esta_abierto(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as carpeta:
+            ruta = self._plist_apex(carpeta)
+            with open(ruta, "rb") as f:
+                antes = f.read()
+            with patch.object(app, "_apex_abierto_mac", return_value=True), patch("builtins.print"):
+                self.assertEqual(app.limpiar_apex_mac(ruta, os.path.join(carpeta, "bk")), 2)
+            with open(ruta, "rb") as f:
+                self.assertEqual(f.read(), antes)
 
     def test_portapapeles_en_mac_usa_pbcopy(self):
         with patch.object(app.os, "name", "posix"), patch.object(app.sys, "platform", "darwin"), \

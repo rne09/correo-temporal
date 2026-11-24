@@ -40,7 +40,7 @@ Despues, doble clic en `windows/CorreoTemporal.bat` (o `python temp_mail_app.py`
 4. **Leer un mensaje**: muestra la bandeja y basta con escribir el numero. Tambien acepta el ID completo o solo su comienzo.
 5. **Copiar correo al portapapeles** (Mac y Windows)
 6. **Registrarse en Retouch4me con correo temporal**
-7. **Limpiar sesion de Apex y conservar Quinces** (solo Windows)
+7. **Limpiar sesion de Apex y conservar presets** (Windows y Mac; cierra Apex antes)
 8. **Recuperar contrasena de Retouch4me** (Forgot password)
 0. **Salir**
 
@@ -61,6 +61,7 @@ Despues, doble clic en `windows/CorreoTemporal.bat` (o `python temp_mail_app.py`
 - **Correo ya usado**: si el correo actual ya se uso para un registro, la opcion 6 crea uno nuevo (Retouch4me rechaza correos repetidos).
 - **Errores de registro mas claros**: muestra el mensaje de la web y guarda la pagina en `ultimo_registro_retouch4me.html`.
 - **Portapapeles en Mac** con `pbcopy`.
+- **Limpieza de Apex en Mac (opcion 7)**: borra el correo, la sesion y el historial de trabajos de `/Library/Application Support/Retouch4me/Retouch4me.plist`, conserva la licencia y los presets, y deja un respaldo en el Escritorio (`Retouch4me_Apex_BACKUP_ANTES_DE_LIMPIAR`). En Windows sigue usando el `.bat`.
 
 ## Pruebas
 
