@@ -30,6 +30,11 @@ RETOUCH_REGISTER_URL = f"{RETOUCH_BASE}/auth/register"
 RETOUCH_POLICIES_URL = f"{RETOUCH_BASE}/retouch4mepolicies"
 RETOUCH_ACCOUNT_URL = f"{RETOUCH_BASE}/account"
 RETOUCH_RECOVERY_URL = f"{RETOUCH_BASE}/auth/password_recovery"
+RETOUCH_AUTH_URL = f"{RETOUCH_BASE}/auth"
+RETOUCH_LOGIN_URL = f"{RETOUCH_BASE}/auth/login"
+RETOUCH_SETTINGS_URL = f"{RETOUCH_BASE}/account/settings"
+RETOUCH_APEX_URL = f"{RETOUCH_BASE}/products/retouch-plugins/123"
+ARCHIVO_FICHA_CUENTA = "cuenta_retouch4me.html"
 RETOUCH_TIMEOUT = 30
 ARCHIVO_CUENTAS_RETOUCH4ME = "cuentas_retouch4me.txt"
 ARCHIVO_LIMPIEZA_APEX = "Retouch4me_Apex_LIMPIEZA_DIRIGIDA_Conservar_Quinces.bat"
@@ -264,6 +269,173 @@ def registrar_retouch4me(correo, nombre, apellido):
         # La password del email tiene prioridad; la de la pagina se usa solo
         # como respaldo cuando el email llega sin ella.
         return {"email": correo, "password": respuesta_registro.get("password")}
+
+
+def _sesion_navegador():
+    sesion = requests.Session()
+    sesion.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    })
+    return sesion
+
+
+def _pagina_es_login(respuesta):
+    """True si la respuesta sigue siendo la pagina de inicio de sesion."""
+    ruta = urlsplit(getattr(respuesta, "url", "") or "").path.rstrip("/")
+    return ruta == "/auth" or 'action="https://retouch4.me/auth/login"' in (respuesta.text or "")
+
+
+def iniciar_sesion_retouch4me(sesion, email, password):
+    """Inicia sesion con las credenciales. Devuelve True si entro a la cuenta."""
+    pagina = sesion.get(RETOUCH_AUTH_URL, timeout=RETOUCH_TIMEOUT)
+    token = _analizar_html_retouch4me(pagina.text).token
+    datos = {"email": email, "password": password}
+    if token:
+        datos["_token"] = token
+    respuesta = sesion.post(
+        RETOUCH_LOGIN_URL, data=datos, timeout=RETOUCH_TIMEOUT,
+        headers={"Referer": RETOUCH_AUTH_URL, "Origin": RETOUCH_BASE},
+    )
+    if respuesta.status_code >= 400:
+        return False
+    cuenta = sesion.get(RETOUCH_ACCOUNT_URL, timeout=RETOUCH_TIMEOUT)
+    return cuenta.status_code < 400 and not _pagina_es_login(cuenta)
+
+
+def activar_cuenta_retouch4me(email, password, verify_url):
+    """Inicia sesion y abre el enlace de verificacion, sin preguntar nada.
+
+    Devuelve un dict con 'sesion' y 'verificado' (True / False / None = desconocido).
+    """
+    estado = {"sesion": False, "verificado": None}
+    password_real = password and not str(password).startswith("(")
+    print()
+    info("Activando la cuenta automaticamente...")
+    try:
+        with _sesion_navegador() as sesion:
+            if password_real:
+                estado["sesion"] = iniciar_sesion_retouch4me(sesion, email, password)
+                if estado["sesion"]:
+                    ok("Sesion iniciada con la contrasena temporal.")
+                else:
+                    aviso("No pude iniciar sesion con esa contrasena.")
+            if verify_url and _host_retouch4me(verify_url):
+                r = sesion.get(verify_url, timeout=RETOUCH_TIMEOUT)
+                if r.status_code < 400:
+                    estado["verificado"] = True
+                    ok("Enlace de verificacion abierto: correo verificado.")
+                else:
+                    estado["verificado"] = False
+                    aviso(f"La verificacion respondio HTTP {r.status_code}; usa el boton de la ficha.")
+            if password_real and not estado["sesion"]:
+                # Algunas cuentas solo permiten entrar despues de verificar.
+                estado["sesion"] = iniciar_sesion_retouch4me(sesion, email, password)
+                if estado["sesion"]:
+                    ok("Sesion iniciada despues de verificar.")
+    except requests.RequestException as exc:
+        aviso(f"No pude completar la activacion automatica: {exc}")
+    return estado
+
+
+def _html(texto):
+    return html_lib.escape(str(texto or ""), quote=True)
+
+
+def crear_ficha_cuenta(credenciales, estado=None):
+    """Crea una pagina local con los datos de la cuenta y botones para los enlaces."""
+    estado = estado or {}
+    password = credenciales.get("password") or ""
+    verificado = estado.get("verificado")
+    if verificado:
+        texto_estado, clase = "Correo verificado", "ok"
+    elif verificado is False:
+        texto_estado, clase = "Falta verificar el correo", "aviso"
+    else:
+        texto_estado, clase = "Verificacion pendiente", "aviso"
+    if estado.get("sesion"):
+        texto_estado += " · inicio de sesion comprobado"
+
+    botones = []
+    if credenciales.get("verify_url"):
+        botones.append(("Verify Email", credenciales["verify_url"], "principal"))
+    botones += [
+        ("Iniciar sesion", RETOUCH_AUTH_URL, "principal"),
+        ("Mi cuenta", RETOUCH_ACCOUNT_URL, ""),
+        ("Cambiar contrasena", RETOUCH_SETTINGS_URL, ""),
+        ("Descargar Apex", RETOUCH_APEX_URL, ""),
+    ]
+    html_botones = "\n".join(
+        f'<a class="boton {c}" href="{_html(u)}" target="_blank" rel="noopener">{_html(t)}</a>'
+        for t, u, c in botones if _url_https_segura(u)
+    )
+    contenido = f"""<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cuenta Retouch4me - {_html(credenciales.get("email"))}</title>
+<style>
+  body {{ margin:0; background:#f3f4f6; font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif; color:#111; }}
+  .tarjeta {{ max-width:560px; margin:48px auto; background:#fff; border-radius:16px; padding:36px 40px;
+             box-shadow:0 8px 30px rgba(0,0,0,.08); }}
+  .marca {{ font-weight:600; color:#555; margin-bottom:20px; }}
+  h1 {{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:26px; margin:0 0 8px; }}
+  .estado {{ display:inline-block; padding:4px 12px; border-radius:999px; font-size:13px; margin-bottom:24px; }}
+  .estado.ok {{ background:#dcfce7; color:#166534; }} .estado.aviso {{ background:#fef3c7; color:#92400e; }}
+  .datos {{ border:1px solid #93b4f5; border-radius:6px; }}
+  .fila {{ display:flex; align-items:center; justify-content:space-between; padding:14px 22px; }}
+  .fila + .fila {{ border-top:1px solid #93b4f5; }}
+  .etiqueta {{ color:#666; font-size:15px; margin-bottom:4px; }}
+  .valor {{ font-size:19px; word-break:break-all; }}
+  .copiar {{ border:1px solid #d1d5db; background:#fff; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px; }}
+  .copiar:hover {{ background:#f3f4f6; }}
+  .botones {{ display:flex; flex-wrap:wrap; gap:12px; margin-top:28px; }}
+  .boton {{ text-decoration:none; padding:12px 22px; border-radius:999px; font-weight:600; border:2px solid #0a6cff; color:#0a6cff; }}
+  .boton.principal {{ background:#0a6cff; color:#fff; }}
+  .boton:hover {{ opacity:.85; }}
+  .nota {{ color:#777; font-size:13px; margin-top:24px; }}
+</style></head><body>
+<div class="tarjeta">
+  <div class="marca">retouch4.me</div>
+  <h1>Tu cuenta de Retouch4me</h1>
+  <span class="estado {clase}">{_html(texto_estado)}</span>
+  <div class="datos">
+    <div class="fila"><div><div class="etiqueta">Login</div>
+      <div class="valor" id="login">{_html(credenciales.get("email"))}</div></div>
+      <button class="copiar" onclick="copiar('login', this)">Copiar</button></div>
+    <div class="fila"><div><div class="etiqueta">Temporary password</div>
+      <div class="valor" id="password">{_html(password)}</div></div>
+      <button class="copiar" onclick="copiar('password', this)">Copiar</button></div>
+  </div>
+  <div class="botones">{html_botones}</div>
+  <p class="nota">Creada el {datetime.now():%d/%m/%Y %H:%M}. Este archivo contiene la contrasena: no lo compartas.</p>
+</div>
+<script>
+function copiar(id, boton) {{
+  navigator.clipboard.writeText(document.getElementById(id).innerText).then(function () {{
+    boton.innerText = "Copiado"; setTimeout(function () {{ boton.innerText = "Copiar"; }}, 1500);
+  }});
+}}
+</script></body></html>
+"""
+    try:
+        ruta = os.path.join(_directorio_aplicacion(), ARCHIVO_FICHA_CUENTA)
+        with open(ruta, "w", encoding="utf-8") as archivo:
+            archivo.write(contenido)
+        return ruta
+    except OSError as exc:
+        aviso(f"No pude crear la ficha de la cuenta: {exc}")
+        return None
+
+
+def abrir_archivo_local(ruta):
+    from pathlib import Path
+    url = Path(ruta).resolve().as_uri()
+    if not abrir_incognito(url):
+        webbrowser.open(url)
 
 
 def solicitar_recuperacion_retouch4me(correo):
@@ -507,18 +679,6 @@ def flujo_registro_retouch4me(proveedor, correo):
     if not credenciales["password"]:
         credenciales["password"] = "(pendiente: usa la opcion 8)"
 
-    datos_cuenta = (
-        f"Login: {credenciales['email']}\n"
-        f"Temporary password: {credenciales['password']}\n"
-        f"Verify Email: {credenciales['verify_url']}"
-    )
-    copiar = preguntar("Copiar login, password temporal y enlace al portapapeles? [s/N]:").lower()
-    if copiar in ("s", "si", "sí", "y", "yes"):
-        if copiar_portapapeles(datos_cuenta):
-            ok("Datos del correo copiados al portapapeles")
-        else:
-            aviso("No se pudieron copiar los datos.")
-
     guardar = preguntar("Guardar estos datos del correo sin cifrar en un archivo? [s/N]:").lower()
     if guardar in ("s", "si", "sí", "y", "yes"):
         try:
@@ -527,8 +687,13 @@ def flujo_registro_retouch4me(proveedor, correo):
         except OSError as exc:
             aviso(f"La cuenta fue creada, pero no pude guardar el archivo: {exc}")
 
-    _abrir(credenciales["verify_url"])
-    confirmar_verificacion_y_abrir_cuenta(credenciales["verify_url"])
+    # Sin mas preguntas: verifica el correo e inicia sesion automaticamente.
+    estado = activar_cuenta_retouch4me(
+        credenciales["email"], credenciales["password"], credenciales["verify_url"])
+    ruta_ficha = crear_ficha_cuenta(credenciales, estado)
+    if ruta_ficha:
+        ok(f"Ficha de la cuenta: {ruta_ficha}")
+        abrir_archivo_local(ruta_ficha)
 
 
 NOMBRES = [

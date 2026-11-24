@@ -55,6 +55,8 @@ Despues, doble clic en `windows/CorreoTemporal.bat` (o `python temp_mail_app.py`
   - la busca tambien en la version HTML del correo;
   - si el correo no la trae, usa la que muestra la web al registrarse;
   - al terminar el registro siempre pregunta si quieres generar una contrasena nueva con "Forgot your password" (la respuesta por defecto es **si** cuando el correo no trajo contrasena).
+- **Activacion automatica tras el registro**: sin preguntar, el programa inicia sesion en Retouch4me con la contrasena temporal y abre el enlace de verificacion para validar la cuenta.
+- **Ficha visual de la cuenta** (`cuenta_retouch4me.html`): se abre en incognito al terminar, con el login y la contrasena (botones para copiarlos) y botones para Verify Email, Iniciar sesion, Mi cuenta, Cambiar contrasena y Descargar Apex. Contiene la contrasena: no se sube al repositorio.
 - **Opcion 8, recuperar contrasena**: pide el correo de "Forgot your password?" a Retouch4me, lo reconoce por remitente y asunto ("account has been recovered"), lo muestra completo y te enseña la contrasena nueva o abre el enlace que traiga.
 - **Enlace de verificacion completo** debajo del cuadro de credenciales, para abrirlo con Cmd + clic (Mac) o Ctrl + clic (Windows).
 - **Limites de mail.tm (error 429)**: el programa espera y reintenta solo (5 s normal, hasta 60 s si mail.tm pide ir mas despacio) y no pierde un correo que no pudo leer.

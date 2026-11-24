@@ -614,6 +614,77 @@ class MejorasMacTests(unittest.TestCase):
                 patch.object(app.time, "sleep"), patch("builtins.print"):
             self.assertEqual(app.flujo_recuperar_contrasena_retouch4me(Proveedor(), "a@b.com"), "Nw45rt")
 
+    def _sesion_retouch(self, login_ok=True, verify_estado=200):
+        class Resp:
+            def __init__(self, url, texto="", estado=200):
+                self.url, self.text, self.status_code = url, texto, estado
+
+        class Sesion:
+            def __init__(self):
+                self.headers, self.posts, self.gets = {}, [], []
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def get(self, url, timeout=None):
+                self.gets.append(url)
+                if url == app.RETOUCH_AUTH_URL:
+                    return Resp(url, '<meta name="csrf-token" content="tok">')
+                if url == app.RETOUCH_ACCOUNT_URL:
+                    if login_ok:
+                        return Resp(url, "<h1>Personal account</h1>")
+                    return Resp("https://retouch4.me/auth?returnto=/account",
+                                '<form action="https://retouch4.me/auth/login">')
+                return Resp(url, "ok", verify_estado)
+
+            def post(self, url, data=None, timeout=None, headers=None):
+                self.posts.append((url, data))
+                return Resp(app.RETOUCH_ACCOUNT_URL)
+
+        return Sesion()
+
+    def test_activar_cuenta_inicia_sesion_y_verifica(self):
+        sesion = self._sesion_retouch()
+        with patch.object(app, "_sesion_navegador", return_value=sesion), patch("builtins.print"):
+            estado = app.activar_cuenta_retouch4me(
+                "a@b.com", "uA4Fj", "https://retouch4.me/email/verify/1/tok")
+        self.assertEqual(estado, {"sesion": True, "verificado": True})
+        self.assertEqual(sesion.posts[0][1], {"email": "a@b.com", "password": "uA4Fj", "_token": "tok"})
+        self.assertIn("https://retouch4.me/email/verify/1/tok", sesion.gets)
+
+    def test_activar_cuenta_con_clave_incorrecta(self):
+        sesion = self._sesion_retouch(login_ok=False)
+        with patch.object(app, "_sesion_navegador", return_value=sesion), patch("builtins.print"):
+            estado = app.activar_cuenta_retouch4me(
+                "a@b.com", "mala", "https://retouch4.me/email/verify/1/tok")
+        self.assertEqual(estado, {"sesion": False, "verificado": True})
+
+    def test_activar_cuenta_sin_clave_solo_verifica(self):
+        sesion = self._sesion_retouch()
+        with patch.object(app, "_sesion_navegador", return_value=sesion), patch("builtins.print"):
+            estado = app.activar_cuenta_retouch4me(
+                "a@b.com", "(pendiente: usa la opcion 8)", "https://retouch4.me/email/verify/1/tok")
+        self.assertEqual(sesion.posts, [])
+        self.assertTrue(estado["verificado"])
+
+    def test_ficha_de_cuenta_con_botones(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as carpeta, \
+                patch.object(app, "_directorio_aplicacion", return_value=carpeta):
+            ruta = app.crear_ficha_cuenta(
+                {"email": "a@b.com", "password": "uA4<Fj",
+                 "verify_url": "https://retouch4.me/email/verify/1/tok"},
+                {"sesion": True, "verificado": True})
+            with open(ruta, encoding="utf-8") as f:
+                html = f.read()
+        self.assertIn("uA4&lt;Fj", html)
+        self.assertIn('href="https://retouch4.me/email/verify/1/tok"', html)
+        self.assertIn("Iniciar sesion", html)
+        self.assertIn("Correo verificado", html)
+
     def test_portapapeles_en_mac_usa_pbcopy(self):
         with patch.object(app.os, "name", "posix"), patch.object(app.sys, "platform", "darwin"), \
                 patch.object(app.shutil, "which", return_value="/usr/bin/pbcopy"), \
