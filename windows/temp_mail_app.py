@@ -632,7 +632,9 @@ def flujo_registro_retouch4me(proveedor, correo):
         return False
 
     info("Enviando el registro a Retouch4me...")
-    registro = registrar_retouch4me(correo, nombre, apellido) or {}
+    proveedor, correo, registro = registrar_con_reintento(
+        proveedor, correo, nombre, apellido, avisar=aviso)
+    ok(f"Registro hecho con: {color(correo, C.VERDE, C.NEGRITA)}")
     password_pagina = registro.get("password")
 
     print()
@@ -646,7 +648,7 @@ def flujo_registro_retouch4me(proveedor, correo):
                  f"{color(password_pagina, C.VERDE, C.NEGRITA)}")
         else:
             _ofrecer_recuperacion(proveedor, correo)
-        return
+        return proveedor, correo
 
     print()
     caja("CREDENCIALES RECIBIDAS POR EMAIL", [
@@ -694,6 +696,7 @@ def flujo_registro_retouch4me(proveedor, correo):
     if ruta_ficha:
         ok(f"Ficha de la cuenta: {ruta_ficha}")
         abrir_archivo_local(ruta_ficha)
+    return proveedor, correo
 
 
 NOMBRES = [
@@ -717,7 +720,29 @@ def random_string(n=10):
 
 
 def nombre_aleatorio():
-    return f"{secrets.choice(NOMBRES)}{secrets.randbelow(9900) + 100}"
+    # Nombre + 2 letras + 5 cifras: muy dificil que coincida con un correo ya registrado.
+    letras = "".join(secrets.choice(string.ascii_lowercase) for _ in range(2))
+    return f"{secrets.choice(NOMBRES)}{letras}{secrets.randbelow(90000) + 10000}"
+
+
+def es_error_correo_ya_registrado(exc):
+    texto = str(exc).casefold()
+    return "already registered" in texto or "ya esta registrado" in texto
+
+
+def registrar_con_reintento(proveedor, correo, nombre, apellido, intentos=3, avisar=None):
+    """Registra; si el correo ya existe en Retouch4me, crea otro buzon y reintenta.
+
+    Devuelve (proveedor, correo, registro)."""
+    for intento in range(intentos):
+        try:
+            return proveedor, correo, (registrar_retouch4me(correo, nombre, apellido) or {})
+        except ErrorRegistroRetouch4me as exc:
+            if not es_error_correo_ya_registrado(exc) or intento == intentos - 1:
+                raise
+            if avisar:
+                avisar(f"{correo} ya estaba registrado en Retouch4me; creo otro correo y reintento...")
+            proveedor, correo = crear_correo_seguro_retouch4me()
 
 
 URL_RE = re.compile(r'https?://[^\s<>"\'()]+')
@@ -1672,8 +1697,13 @@ def menu():
                 # correo ya no se reutiliza: Retouch4me lo rechazaria por duplicado.
                 enviado = True
                 try:
-                    if flujo_registro_retouch4me(proveedor, correo) is False:
+                    resultado = flujo_registro_retouch4me(proveedor, correo)
+                    if resultado is False:
                         enviado = False
+                    elif resultado:
+                        # Si se creo otro correo por estar el primero registrado.
+                        correos_registrados.add(correo)
+                        proveedor, correo = resultado
                 finally:
                     if enviado:
                         correos_registrados.add(correo)

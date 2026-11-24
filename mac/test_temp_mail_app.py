@@ -685,6 +685,28 @@ class MejorasMacTests(unittest.TestCase):
         self.assertIn("Iniciar sesion", html)
         self.assertIn("Correo verificado", html)
 
+    def test_registro_reintenta_si_el_correo_ya_existe(self):
+        llamadas = []
+
+        def registrar(correo, nombre, apellido):
+            llamadas.append(correo)
+            if len(llamadas) == 1:
+                raise app.ErrorRegistroRetouch4me(
+                    "no confirmo\n    Mensaje de la web: Registration failed | This E-mail is already registered")
+            return {"email": correo, "password": None}
+
+        with patch.object(app, "registrar_retouch4me", side_effect=registrar), \
+                patch.object(app, "crear_correo_seguro_retouch4me", return_value=("P2", "nuevo@x.com")):
+            proveedor, correo, registro = app.registrar_con_reintento("P1", "viejo@x.com", "A", "B")
+        self.assertEqual((proveedor, correo), ("P2", "nuevo@x.com"))
+        self.assertEqual(llamadas, ["viejo@x.com", "nuevo@x.com"])
+
+    def test_registro_no_reintenta_otros_errores(self):
+        with patch.object(app, "registrar_retouch4me",
+                          side_effect=app.ErrorRegistroRetouch4me("HTTP 500")):
+            with self.assertRaises(app.ErrorRegistroRetouch4me):
+                app.registrar_con_reintento("P1", "a@x.com", "A", "B")
+
     def test_portapapeles_en_mac_usa_pbcopy(self):
         with patch.object(app.os, "name", "posix"), patch.object(app.sys, "platform", "darwin"), \
                 patch.object(app.shutil, "which", return_value="/usr/bin/pbcopy"), \

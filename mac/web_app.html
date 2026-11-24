@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Correo Temporal</title>
+<style>
+  :root { --azul:#0a6cff; --borde:#e5e7eb; --suave:#f3f4f6; --texto:#111827; --gris:#6b7280; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif; background:#eef1f5; color:var(--texto); }
+  header { background:#0f172a; color:#fff; padding:16px 28px; display:flex; align-items:center; gap:12px; }
+  header h1 { font-size:20px; margin:0; font-weight:600; }
+  main { max-width:1200px; margin:24px auto; padding:0 20px; display:grid; grid-template-columns:380px 1fr; gap:20px; }
+  @media (max-width:900px) { main { grid-template-columns:1fr; } }
+  .tarjeta { background:#fff; border-radius:14px; padding:22px; box-shadow:0 4px 18px rgba(0,0,0,.06); margin-bottom:20px; }
+  .tarjeta h2 { margin:0 0 14px; font-size:16px; }
+  .correo { font-size:18px; font-weight:600; word-break:break-all; padding:12px 14px; background:var(--suave); border-radius:10px; margin-bottom:12px; }
+  .vacio { color:var(--gris); font-weight:400; }
+  button, .boton { font:inherit; font-size:14px; font-weight:600; border-radius:999px; padding:10px 18px; cursor:pointer;
+                   border:2px solid var(--azul); background:#fff; color:var(--azul); text-decoration:none; display:inline-block; }
+  button.principal { background:var(--azul); color:#fff; }
+  button.peligro { border-color:#dc2626; color:#dc2626; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  button.chico { padding:5px 12px; font-size:13px; border-width:1px; border-color:#d1d5db; color:var(--texto); }
+  .fila-botones { display:flex; flex-wrap:wrap; gap:10px; }
+  .lista { list-style:none; margin:0; padding:0; }
+  .lista li { padding:12px 14px; border-bottom:1px solid var(--borde); cursor:pointer; border-radius:8px; }
+  .lista li:hover { background:var(--suave); }
+  .lista li.activo { background:#e8f0ff; }
+  .lista .de { font-size:12px; color:var(--gris); }
+  .lista .asunto { font-weight:600; margin-top:2px; }
+  iframe { width:100%; height:520px; border:1px solid var(--borde); border-radius:10px; background:#fff; }
+  .enlaces { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+  .enlaces button.verificar { background:var(--azul); color:#fff; }
+  .datos { border:1px solid #93b4f5; border-radius:8px; margin:14px 0; }
+  .datos .f { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; gap:10px; }
+  .datos .f + .f { border-top:1px solid #93b4f5; }
+  .datos .et { font-size:13px; color:var(--gris); }
+  .datos .va { font-size:18px; word-break:break-all; }
+  .pasos { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; background:#0f172a; color:#d1fae5;
+           border-radius:10px; padding:12px; max-height:220px; overflow:auto; margin-top:14px; white-space:pre-wrap; }
+  .etiqueta { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; margin:2px 4px 2px 0; }
+  .ok { background:#dcfce7; color:#166534; } .aviso { background:#fef3c7; color:#92400e; } .mal { background:#fee2e2; color:#991b1b; }
+  label.check { display:flex; gap:8px; align-items:center; font-size:13px; color:var(--gris); margin:10px 0; }
+  #toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:10px 18px;
+           border-radius:10px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  #toast.ver { opacity:1; }
+  .pista { color:var(--gris); font-size:13px; margin:6px 0 12px; }
+</style>
+</head>
+<body>
+<header><span style="font-size:22px">✉</span><h1>Correo Temporal</h1></header>
+<main>
+  <div>
+    <section class="tarjeta">
+      <h2>Tu correo temporal</h2>
+      <div class="correo" id="correo"><span class="vacio">Sin correo todavia</span></div>
+      <div class="fila-botones">
+        <button class="principal" id="btnNuevo">Crear correo nuevo</button>
+        <button id="btnCopiar" disabled>Copiar</button>
+      </div>
+    </section>
+
+    <section class="tarjeta">
+      <h2>Retouch4me</h2>
+      <div class="fila-botones">
+        <button class="principal" id="btnRegistro">Registrarme</button>
+        <button id="btnRecuperar">Recuperar contraseña</button>
+        <button id="btnCancelar" style="display:none">Cancelar</button>
+      </div>
+      <label class="check"><input type="checkbox" id="guardar"> Guardar la cuenta en cuentas_retouch4me.txt</label>
+      <p class="pista">Registrarme: crea el correo si hace falta, se registra, espera la contraseña, inicia sesión y verifica la cuenta solo.</p>
+      <div id="cuenta"></div>
+      <div class="pasos" id="pasos" style="display:none"></div>
+    </section>
+
+    <section class="tarjeta">
+      <h2>Retouch4me Apex</h2>
+      <p class="pista" style="margin-bottom:12px">Borra el correo, la sesión y el historial de Apex. Conserva licencia y presets, y deja un respaldo en el Escritorio. Cierra Apex antes.</p>
+      <button class="peligro" id="btnApex">Limpiar sesión de Apex</button>
+    </section>
+  </div>
+
+  <div>
+    <section class="tarjeta">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h2 style="margin:0">Bandeja de entrada</h2>
+        <button class="chico" id="btnRefrescar">Actualizar</button>
+      </div>
+      <ul class="lista" id="bandeja"><li class="vacio" style="cursor:default">Crea un correo para empezar.</li></ul>
+    </section>
+    <section class="tarjeta" id="visor" style="display:none">
+      <div class="de" id="vDe" style="color:var(--gris);font-size:13px"></div>
+      <h2 id="vAsunto" style="margin-top:4px"></h2>
+      <div class="enlaces" id="vEnlaces"></div>
+      <iframe id="vMarco" sandbox="" referrerpolicy="no-referrer"></iframe>
+    </section>
+  </div>
+</main>
+<div id="toast"></div>
+
+<script>
+const TOKEN = "__TOKEN__";
+let correoActual = null, mensajeActivo = null, ultimaTarea = null;
+
+async function api(ruta, cuerpo) {
+  const opciones = { headers: { "X-Token": TOKEN } };
+  if (cuerpo !== undefined) {
+    opciones.method = "POST";
+    opciones.headers["Content-Type"] = "application/json";
+    opciones.body = JSON.stringify(cuerpo);
+  }
+  const r = await fetch(ruta, opciones);
+  const datos = await r.json();
+  if (!r.ok) throw new Error(datos.error || ("Error " + r.status));
+  return datos;
+}
+
+function aviso(texto) {
+  const t = document.getElementById("toast");
+  t.textContent = texto; t.classList.add("ver");
+  clearTimeout(aviso.t); aviso.t = setTimeout(() => t.classList.remove("ver"), 2500);
+}
+
+function esc(t) { const d = document.createElement("div"); d.textContent = t == null ? "" : String(t); return d.innerHTML; }
+
+async function copiar(texto) {
+  try { await navigator.clipboard.writeText(texto); }
+  catch (e) { await api("/api/copiar", { texto }); }
+  aviso("Copiado");
+}
+
+async function abrir(url) {
+  try { await api("/api/abrir", { url }); aviso("Abierto en modo incógnito"); }
+  catch (e) { aviso(e.message); }
+}
+
+function pintarCorreo(correo) {
+  correoActual = correo;
+  document.getElementById("correo").innerHTML = correo ? esc(correo) : '<span class="vacio">Sin correo todavia</span>';
+  document.getElementById("btnCopiar").disabled = !correo;
+}
+
+async function cargarBandeja() {
+  if (!correoActual) return;
+  try {
+    const { mensajes } = await api("/api/mensajes");
+    const ul = document.getElementById("bandeja");
+    if (!mensajes.length) { ul.innerHTML = '<li class="vacio" style="cursor:default">Bandeja vacía. Se actualiza sola.</li>'; return; }
+    ul.innerHTML = mensajes.map(m => `<li data-id="${esc(m.id)}" class="${m.id === mensajeActivo ? "activo" : ""}">
+        <div class="de">${esc(m.de)}</div><div class="asunto">${esc(m.asunto)}</div></li>`).join("");
+    ul.querySelectorAll("li[data-id]").forEach(li => li.onclick = () => leer(li.dataset.id));
+  } catch (e) { /* mail.tm puede pedir ir más despacio; se reintenta solo */ }
+}
+
+async function leer(id) {
+  mensajeActivo = id;
+  document.querySelectorAll("#bandeja li").forEach(li => li.classList.toggle("activo", li.dataset.id === id));
+  try {
+    const m = await api("/api/mensaje?id=" + encodeURIComponent(id));
+    document.getElementById("visor").style.display = "";
+    document.getElementById("vDe").textContent = "De: " + m.de;
+    document.getElementById("vAsunto").textContent = m.asunto;
+    const cont = document.getElementById("vEnlaces");
+    const vistos = new Set();
+    const botones = [];
+    for (const url of m.verificar) { vistos.add(url); botones.push({ url, texto: "✔ Verificar", verificar: true }); }
+    for (const e of m.enlaces) {
+      if (vistos.has(e.url)) continue; vistos.add(e.url);
+      const texto = (e.texto || "").trim();
+      if (!texto || texto.length > 40) continue; // omite imagenes y enlaces sin texto
+      botones.push({ url: e.url, texto });
+    }
+    cont.innerHTML = "";
+    botones.slice(0, 14).forEach(b => {
+      const el = document.createElement("button");
+      el.textContent = b.texto; if (b.verificar) el.className = "verificar";
+      el.onclick = () => abrir(b.url); cont.appendChild(el);
+    });
+    const marco = document.getElementById("vMarco");
+    marco.srcdoc = m.html || `<pre style="white-space:pre-wrap;font-family:sans-serif">${esc(m.texto)}</pre>`;
+  } catch (e) { aviso(e.message); }
+}
+
+function pintarCuenta(r, tipo) {
+  const c = document.getElementById("cuenta");
+  if (!r) { c.innerHTML = ""; return; }
+  const etiquetas = [];
+  if (r.verificado === true) etiquetas.push('<span class="etiqueta ok">Correo verificado</span>');
+  else if (tipo === "registro") etiquetas.push('<span class="etiqueta aviso">Verificación pendiente</span>');
+  etiquetas.push(r.sesion ? '<span class="etiqueta ok">Inicio de sesión comprobado</span>'
+                          : '<span class="etiqueta aviso">Inicio de sesión no comprobado</span>');
+  const filas = [["Login", r.email]];
+  if (r.password) filas.push([tipo === "registro" ? "Temporary password" : "Contraseña nueva", r.password]);
+  c.innerHTML = `${etiquetas.join("")}
+    <div class="datos">${filas.map(([et, va], i) => `<div class="f"><div><div class="et">${esc(et)}</div>
+      <div class="va">${esc(va)}</div></div><button class="chico" data-copiar="${i}">Copiar</button></div>`).join("")}</div>
+    <div class="fila-botones" id="botonesCuenta"></div>`;
+  c.querySelectorAll("[data-copiar]").forEach(b => b.onclick = () => copiar(filas[+b.dataset.copiar][1]));
+  const enlaces = [];
+  if (r.verify_url) enlaces.push(["Verify Email", r.verify_url, true]);
+  if (r.enlace) enlaces.push(["Enlace del correo", r.enlace, true]);
+  enlaces.push(["Iniciar sesión", "https://retouch4.me/auth", !r.verify_url]);
+  enlaces.push(["Mi cuenta", "https://retouch4.me/account"]);
+  enlaces.push(["Cambiar contraseña", "https://retouch4.me/account/settings"]);
+  enlaces.push(["Descargar Apex", "https://retouch4.me/products/retouch-plugins/123"]);
+  const zona = document.getElementById("botonesCuenta");
+  enlaces.forEach(([t, u, p]) => { const b = document.createElement("button"); b.textContent = t;
+    if (p) b.className = "principal"; b.onclick = () => abrir(u); zona.appendChild(b); });
+}
+
+function pintarTarea(t) {
+  const ocupado = t && t.estado === "en_curso";
+  ["btnRegistro", "btnRecuperar", "btnNuevo"].forEach(id => document.getElementById(id).disabled = ocupado);
+  document.getElementById("btnCancelar").style.display = ocupado ? "" : "none";
+  if (!t) return;
+  const p = document.getElementById("pasos");
+  p.style.display = "";
+  let texto = t.pasos.map(x => `${x.hora}  ${x.texto}`).join("\n");
+  if (t.estado === "error") texto += `\n✖ ${t.error}`;
+  if (t.estado === "terminada") texto += "\n✔ Listo";
+  if (t.estado === "cancelada") texto += "\n• Cancelado";
+  if (ocupado) texto += "\n…";
+  p.textContent = texto; p.scrollTop = p.scrollHeight;
+  if (t.resultado && ultimaTarea !== t.id + t.estado) pintarCuenta(t.resultado, t.tipo);
+  ultimaTarea = t.id + t.estado;
+}
+
+async function refrescarEstado() {
+  try {
+    const e = await api("/api/estado");
+    if (e.correo !== correoActual) { pintarCorreo(e.correo); cargarBandeja(); }
+    pintarTarea(e.tarea);
+  } catch (e) { /* servidor ocupado */ }
+}
+
+async function iniciarTarea(ruta, cuerpo) {
+  try { pintarCuenta(null); pintarTarea(await api(ruta, cuerpo || {})); }
+  catch (e) { aviso(e.message); }
+}
+
+document.getElementById("btnNuevo").onclick = async () => {
+  const b = document.getElementById("btnNuevo"); b.disabled = true; b.textContent = "Creando…";
+  try { const { correo } = await api("/api/correo", {}); pintarCorreo(correo); mensajeActivo = null;
+        document.getElementById("visor").style.display = "none"; cargarBandeja(); aviso("Correo creado"); }
+  catch (e) { aviso(e.message); }
+  b.disabled = false; b.textContent = "Crear correo nuevo";
+};
+document.getElementById("btnCopiar").onclick = () => correoActual && copiar(correoActual);
+document.getElementById("btnRefrescar").onclick = cargarBandeja;
+document.getElementById("btnRegistro").onclick = () =>
+  iniciarTarea("/api/registro", { guardar: document.getElementById("guardar").checked });
+document.getElementById("btnRecuperar").onclick = () => {
+  if (!correoActual) return aviso("Primero necesitas el correo con el que te registraste.");
+  iniciarTarea("/api/recuperar");
+};
+document.getElementById("btnCancelar").onclick = () => api("/api/cancelar", {});
+document.getElementById("btnApex").onclick = async () => {
+  if (!confirm("¿Limpiar la sesión de Retouch4me Apex? Apex debe estar cerrado.")) return;
+  try { const r = await api("/api/limpiar-apex", {});
+        aviso(r.ok ? "Apex limpio: abre Apex e inicia sesión con la cuenta nueva." : "La limpieza terminó con el código " + r.codigo); }
+  catch (e) { aviso(e.message); }
+};
+
+refrescarEstado();
+setInterval(refrescarEstado, 2000);
+setInterval(cargarBandeja, 10000);
+</script>
+</body>
+</html>

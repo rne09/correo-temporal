@@ -11,6 +11,19 @@ Programa en Python con menu para generar correos temporales usando la API public
 
 Las dos carpetas tienen el mismo `temp_mail_app.py`: el programa detecta el sistema y usa lo que corresponde (por ejemplo `pbcopy` en Mac y `clip.exe` en Windows). Cualquier cambio debe copiarse a ambas carpetas.
 
+## Version en el navegador (recomendada)
+
+Todo funciona con botones en el navegador: crear el correo, ver la bandeja, leer los mensajes (con botones para sus enlaces), registrarse en Retouch4me, recuperar la contrasena y limpiar Apex.
+
+- **Mac**: doble clic en `mac/Correo temporal (navegador).command`.
+- **Windows**: doble clic en `windows/CorreoTemporal_Navegador.bat`.
+
+Se abre `http://127.0.0.1:8765/`. Deja abierta la ventana negra mientras lo usas; para cerrarlo pulsa Ctrl+C en ella. El servidor solo acepta conexiones de tu propio equipo.
+
+Con **Registrarme** el programa hace todo solo: crea el correo si hace falta (o uno nuevo si el actual ya estaba registrado), se registra, espera la contrasena (o pide una nueva si no llega), inicia sesion y verifica la cuenta. Los enlaces se abren en modo incognito.
+
+La version de terminal (`temp_mail_app.py`) sigue disponible.
+
 ## Instalacion
 
 ### macOS
@@ -61,6 +74,7 @@ Despues, doble clic en `windows/CorreoTemporal.bat` (o `python temp_mail_app.py`
 - **Enlace de verificacion completo** debajo del cuadro de credenciales, para abrirlo con Cmd + clic (Mac) o Ctrl + clic (Windows).
 - **Limites de mail.tm (error 429)**: el programa espera y reintenta solo (5 s normal, hasta 60 s si mail.tm pide ir mas despacio) y no pierde un correo que no pudo leer.
 - **Sesion de mail.tm caducada**: se renueva automaticamente.
+- **Correo ya registrado**: si Retouch4me responde \"This E-mail is already registered\", se crea otro correo y se reintenta solo.
 - **Correo ya usado**: si el correo actual ya se uso para un registro, la opcion 6 crea uno nuevo (Retouch4me rechaza correos repetidos).
 - **Errores de registro mas claros**: muestra el mensaje de la web y guarda la pagina en `ultimo_registro_retouch4me.html`.
 - **Portapapeles en Mac** con `pbcopy`.
