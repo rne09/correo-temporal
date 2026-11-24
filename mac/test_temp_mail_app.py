@@ -565,6 +565,22 @@ class MejorasMacTests(unittest.TestCase):
                             "New password\n\nZp83kQ\n\n\U0001F4A1 Tip: change it.", "html": None}
         self.assertEqual(app.datos_recuperacion_retouch4me(mensaje), ("Zp83kQ", None))
 
+    def test_correo_real_de_recuperacion(self):
+        texto = (
+            "Hi!\n\nYou received this email because you asked to recover your password "
+            "for Retouch4me personal account.\n\n"
+            "****************************************\n"
+            "Your account password has been recovered\n"
+            "****************************************\n\n"
+            "Login: a@b.com\n\nTemporary password: 2MPyZAKqNe\n\n"
+            "Please change the temporary password in your personal account settings.\n\n"
+            "Go to your account ( https://retouch4.me/account/settings )\n"
+        )
+        mensaje = {"de": "noreply@retouch4.me", "asunto": "Your Retouch4me account has been recovered",
+                   "texto": texto, "html": None}
+        self.assertTrue(app.es_correo_recuperacion_retouch4me(mensaje))
+        self.assertEqual(app.datos_recuperacion_retouch4me(mensaje)[0], "2MPyZAKqNe")
+
     def test_recuperacion_con_password_a_secas(self):
         mensaje = {"texto": "Login: a@b.com\nPassword: Qq12ab\nPlease change your password later.",
                    "html": None}
