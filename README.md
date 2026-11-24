@@ -74,7 +74,7 @@ Despues, doble clic en `windows/CorreoTemporal.bat` (o `python temp_mail_app.py`
 - **Enlace de verificacion completo** debajo del cuadro de credenciales, para abrirlo con Cmd + clic (Mac) o Ctrl + clic (Windows).
 - **Limites de mail.tm (error 429)**: el programa espera y reintenta solo (5 s normal, hasta 60 s si mail.tm pide ir mas despacio) y no pierde un correo que no pudo leer.
 - **Sesion de mail.tm caducada**: se renueva automaticamente.
-- **Correo ya registrado**: si Retouch4me responde \"This E-mail is already registered\", se crea otro correo y se reintenta solo.
+- **Correo ya registrado**: si Retouch4me responde "This E-mail is already registered", se crea otro correo y se reintenta solo.
 - **Correo ya usado**: si el correo actual ya se uso para un registro, la opcion 6 crea uno nuevo (Retouch4me rechaza correos repetidos).
 - **Errores de registro mas claros**: muestra el mensaje de la web y guarda la pagina en `ultimo_registro_retouch4me.html`.
 - **Portapapeles en Mac** con `pbcopy`.
